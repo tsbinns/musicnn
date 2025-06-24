@@ -114,9 +114,13 @@ def extractor(file_name, model='MTT_musicnn', input_length=3, input_overlap=Fals
     '''
     
     # select model
-    if 'MTT' in model:
+    if model not in config.MODELS:
+        raise ValueError(
+            f"Model '{model}' is not recognised. Available models are: {config.MODELS}"
+        )
+    if model.startswith("MTT_"):
         labels = config.MTT_LABELS
-    elif 'MSD' in model:
+    else:
         labels = config.MSD_LABELS
     num_classes = len(labels)
     

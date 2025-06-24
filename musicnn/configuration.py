@@ -4,6 +4,9 @@ FFT_HOP = 256
 FFT_SIZE = 512
 N_MELS = 96
 
+# Available models
+MODELS = ["MTT_musicnn", "MTT_vgg", "MSD_musicnn", "MSD_musicnn_big", "MSD_vgg"]
+
 # Machine learning setup
 BATCH_SIZE = 1 # (size of the batch during prediction)
 
