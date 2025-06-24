@@ -160,7 +160,7 @@ def extractor(file_name, model='MTT_musicnn', input_length=3, input_overlap=Fals
 
     # batching data
     print('Computing spectrogram (w/ librosa) and tags (w/ tensorflow)..', end =" ")
-    batch, spectrogram = batch_data(file_name, n_frames, overlap)
+    batch, _ = batch_data(file_name, n_frames, overlap)
 
     # tensorflow: extract features and tags
     # ..first batch!
@@ -237,7 +237,4 @@ def extractor(file_name, model='MTT_musicnn', input_length=3, input_overlap=Fals
 
     if extract_features:
         return taggram, labels, features
-    else:
-        return taggram, labels
-
-
+    return taggram, labels
