@@ -13,11 +13,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.7",
 ]
-dependencies = [
-    'librosa',
-    'tensorflow-cpu',
-    'numpy'
-]
+dependencies = ['librosa', 'tensorflow-cpu', 'numpy']
 description = 'Pronounced as "musician", musicnn is a set of pre-trained deep convolutional neural networks for music audio tagging'
 dynamic = ["version"]
 name = 'musicnn'
@@ -32,3 +28,10 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ['musicnn*']
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint.per-file-ignores]
+"*.py" = ["E203", "E741"]
+"__init__.py" = ["F401"]
