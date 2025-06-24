@@ -150,12 +150,13 @@ def extractor(file_name, model='MTT_musicnn', input_length=3, input_overlap=Fals
     sess.run(tf.compat.v1.global_variables_initializer())
     saver = tf.compat.v1.train.Saver()
     try:
-        saver.restore(sess, os.path.dirname(__file__)+'/'+model+'/') 
-    except:
-        if model == 'MSD_musicnn_big':
-            raise ValueError('MSD_musicnn_big model is only available if you install from source: python setup.py install')
-        elif model == 'MSD_vgg':
-            raise ValueError('MSD_vgg model is still training... will be available soon! :)')
+        saver.restore(sess, os.path.dirname(__file__) + "\\" + model + "\\")
+    except tf.errors.DataLossError as error:
+        if model == "MSD_musicnn_big":
+            raise ValueError(
+                "'MSD_musicnn_big' model is only available if you install from source."
+            ) from error
+        raise ValueError(f"Model '{model}' cannot be loaded.") from error
 
     # batching data
     print('Computing spectrogram (w/ librosa) and tags (w/ tensorflow)..', end =" ")
