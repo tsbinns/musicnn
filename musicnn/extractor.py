@@ -1,10 +1,11 @@
-import os
 import warnings
 
 import numpy as np
 import librosa
-
 import tensorflow as tf
+
+from musicnn import models
+from musicnn import configuration as config
 
 # disabling (most) warnings caused by change from tensorflow 1.x to 2.x
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -14,39 +15,70 @@ tf.compat.v1.logging.set_verbosity("ERROR")
 # disable eager mode for tf.v1 compatibility with tf.v2
 tf.compat.v1.disable_eager_execution()
 
-from musicnn import models
-from musicnn import configuration as config
 
+def batch_data(
+    audio: str | np.ndarray,
+    n_frames: int,
+    input_overlap: float | bool,
+    sr: float | None = None,
+    resample_kwargs: dict = {},
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute and split the full audio spectrogram into batches.
 
-def batch_data(audio_file, n_frames, overlap):
-    """For an efficient computation, we split the full music spectrograms in patches of length n_frames with overlap.
+    PARAMETERS
+    ----------
+    audio: str | np.ndarray, shape (channels, times)
+        A path to the audio file or a numpy array containing the audio data.
+    n_frames: int
+        Length (in frames) of the input spectrogram batches.
+    input_overlap: float | bool
+        Amount of overlap (in seconds) of the input spectrogram batches. `False` for no
+        overlap.
+    sr: float | None, default None
+        Sampling rate of `audio`, if it is an array.
+    resample_kwargs: dict, default {}
+        Keyword arguments for `librosa.resample` if `audio` is a numpy array. Only used
+        if `sr` does not match the expected 16 kHz.
 
-    INPUT
+    RETURNS
+    -------
+    batched_spectrogram: np.ndarray, shape (batches, times, frequencies)
+        Audio spectrogram in batches.
 
-    - file_name: path to the music file to tag.
-    Data format: string.
-    Example: './audio/TRWJAZW128F42760DD_test.mp3'
-
-    - n_frames: length (in frames) of the input spectrogram patches.
-    Data format: integer.
-    Example: 187
-
-    - overlap: ammount of overlap (in frames) of the input spectrogram patches.
-    Note: Set it considering n_frames.
-    Data format: integer.
-    Example: 10
-
-    OUTPUT
-
-    - batch: batched audio representation. It returns spectrograms split in patches of length n_frames with overlap.
-    Data format: 3D np.array (batch, time, frequency)
-
-    - audio_rep: raw audio representation (spectrogram).
-    Data format: 2D np.array (time, frequency)
+    full_spectrogram: np.ndarray, shape (times, frequencies)
+        Full audio spectrogram.
     """
+    # convert overlap from seconds to frames
+    if isinstance(input_overlap, bool) and input_overlap:
+        raise ValueError("If `overlap` is a bool, it must be False.")
+    if not input_overlap:
+        overlap = n_frames
+    else:
+        overlap = librosa.time_to_frames(
+            overlap,
+            sr=config.SR,
+            n_fft=config.FFT_SIZE,
+            hop_length=config.FFT_HOP,
+        )
+
+    # Prepare data
+    if isinstance(audio, np.ndarray):
+        if sr is None:
+            raise ValueError("If `audio` is a numpy array, `sr` must be provided.")
+        if audio.ndim != 2:
+            raise ValueError("`audio` must be a 2D numpy array of [channels x times].")
+        if audio.shape[0] > 1:  # convert to mono
+            audio = np.mean(audio, axis=0)
+        if sr != config.SR:  # standardise sampling rate
+            audio = librosa.resample(
+                audio, orig_sr=sr, target_sr=config.SR, **resample_kwargs
+            )
+    else:
+        if not isinstance(audio, str):
+            raise ValueError("`audio` must be a string or a numpy array.")
+        audio, sr = librosa.load(audio, sr=config.SR)
 
     # compute the log-mel spectrogram with librosa
-    audio, sr = librosa.load(audio_file, sr=config.SR)
     audio_rep = librosa.feature.melspectrogram(
         y=audio,
         sr=sr,
@@ -73,152 +105,114 @@ def batch_data(audio_file, n_frames, overlap):
 
 
 def extractor(
-    file_name,
-    model="MTT_musicnn",
-    input_length=3,
-    input_overlap=False,
-    extract_features=True,
+    audio: str | np.ndarray,
+    model: str = "MTT_musicnn",
+    input_length: float = 3.0,
+    input_overlap: float | bool = False,
+    extract_features: bool = True,
 ):
-    """Extract the taggram (the temporal evolution of tags) and features (intermediate representations of the model) of the music-clip in file_name with the selected model.
+    """Extract the taggram and features from audio data.
 
-    INPUT
+    PARAMETERS
+    ----------
+    audio: str | np.ndarray, shape (channels, times)
+        A path to the audio file or a numpy array containing the audio data.
+    model: str, default 'MTT_musicnn'
+        Name of the model to use for extraction.
+    input_length: float, default 3.0
+        Length (in seconds) of the input spectrogram batches.
+    input_overlap: float | bool, default False
+        Amount of overlap (in seconds) of the input spectrogram batches. If `False`, no
+        overlap is applied.
+    extract_features: bool, default True
+        Whether to extract the intermediate features of the model.
 
-    - file_name: path to the music file to tag.
-    Data format: string.
-    Example: './audio/TRWJAZW128F42760DD_test.mp3'
-
-    - model: select a music audio tagging model.
-    Data format: string.
-    Options: 'MTT_musicnn', 'MTT_vgg', 'MSD_musicnn', 'MSD_musicnn_big' or 'MSD_vgg'.
-    MTT models are trained with the MagnaTagATune dataset.
-    MSD models are trained with the Million Song Dataset.
-    To know more about these models, check our musicnn / vgg examples, and the FAQs.
-    Important! 'MSD_musicnn_big' is only available if you install from source: python setup.py install.
-
-    - input_length: length (in seconds) of the input spectrogram patches. Set it small for real-time applications.
-    Note: This is the length of the data that is going to be fed to the model. In other words, this parameter defines the temporal resolution of the taggram.
-    Recommended value: 3, because the models were trained with 3 second inputs.
-    Observation: the vgg models do not allow for different input lengths. For this reason, the vgg models' input_length needs to be set to 3. However, musicnn models allow for different input lengths: see this jupyter notebook.
-    Data format: floating point number.
-    Example: 3.1
-
-    - input_overlap: ammount of overlap (in seconds) of the input spectrogram patches.
-    Note: Set it considering the input_length.
-    Data format: floating point number.
-    Example: 1.0
-
-    - extract_features: set it True for extracting the intermediate representations of the model.
-    Data format: boolean.
-    Options: False (for NOT extracting the features), True (for extracting the features).
-
-    OUTPUT
-
-    - taggram: expresses the temporal evolution of the tags likelihood.
-    Data format: 2D np.ndarray (time, tags).
-    Example: see our basic / advanced examples.
-
-    - tags: list of tags corresponding to the tag-indices of the taggram.
-    Data format: list.
-    Example: see our FAQs page for the complete tags list.
-
-    - features: if extract_features = True, it outputs a dictionary containing the activations of the different layers the selected model has.
-    Data format: dictionary.
-    Keys (musicnn models): ['timbral', 'temporal', 'cnn1', 'cnn2', 'cnn3', 'mean_pool', 'max_pool', 'penultimate']
-    Keys (vgg models): ['pool1', 'pool2', 'pool3', 'pool4', 'pool5']
-    Example: see our musicnn and vgg examples.
-
+    RETURNS
+    -------
+    taggram: np.ndarray, shape (batches, tags)
+        The taggram containing the temporal evolution of tags.
+    labels: list
+        List of tags in `taggram`.
+    features: dict
+        Dictionary containing the intermediate features of the model. Only returned if
+        `extract_features=True`.
     """
-    # select model
-    if model not in config.MODELS:
-        raise ValueError(
-            f"Model '{model}' is not recognised. Available models are: {config.MODELS}"
-        )
-    if model.startswith("MTT_"):
-        labels = config.MTT_LABELS
-    else:
-        labels = config.MSD_LABELS
-    num_classes = len(labels)
-
-    if "vgg" in model and input_length != 3:
-        raise ValueError(
-            "Set input_length=3, the VGG models cannot handle different input lengths."
-        )
-
-    # convert seconds to frames
-    n_frames = (
-        librosa.time_to_frames(
-            input_length, sr=config.SR, n_fft=config.FFT_SIZE, hop_length=config.FFT_HOP
-        )
-        + 1
+    # load model
+    session, feed_list, extract_vector, n_frames = models.load_model(
+        model=model, input_length=input_length
     )
-    if not input_overlap:
-        overlap = n_frames
-    else:
-        overlap = librosa.time_to_frames(
-            input_overlap,
-            sr=config.SR,
-            n_fft=config.FFT_SIZE,
-            hop_length=config.FFT_HOP,
-        )
-
-    # tensorflow: define the model
-    tf.compat.v1.reset_default_graph()
-    with tf.name_scope("model"):
-        x = tf.compat.v1.placeholder(tf.float32, [None, n_frames, config.N_MELS])
-        is_training = tf.compat.v1.placeholder(tf.bool)
-        if "vgg" in model:
-            y, pool1, pool2, pool3, pool4, pool5 = models.define_model(
-                x, is_training, model, num_classes
-            )
-        else:
-            y, timbral, temporal, cnn1, cnn2, cnn3, mean_pool, max_pool, penultimate = (
-                models.define_model(x, is_training, model, num_classes)
-            )
-        normalized_y = tf.nn.sigmoid(y)
-
-    # tensorflow: loading model
-    sess = tf.compat.v1.Session()
-    sess.run(tf.compat.v1.global_variables_initializer())
-    saver = tf.compat.v1.train.Saver()
-    try:
-        saver.restore(sess, os.path.dirname(__file__) + "\\" + model + "\\")
-    except tf.errors.DataLossError as error:
-        if model == "MSD_musicnn_big":
-            raise ValueError(
-                "'MSD_musicnn_big' model is only available if you install from source."
-            ) from error
-        raise ValueError(f"Model '{model}' cannot be loaded.") from error
 
     # batching data
     print("Computing spectrogram (w/ librosa) and tags (w/ tensorflow)...", end=" ")
-    batch, _ = batch_data(file_name, n_frames, overlap)
+    batches, _ = batch_data(audio=audio, n_frames=n_frames, input_overlap=input_overlap)
 
     # tensorflow: extract features and tags
-    # ..first batch!
-    if extract_features:
-        if "vgg" in model:
-            extract_vector = [normalized_y, pool1, pool2, pool3, pool4, pool5]
-        else:
-            extract_vector = [
-                normalized_y,
-                timbral,
-                temporal,
-                cnn1,
-                cnn2,
-                cnn3,
-                mean_pool,
-                max_pool,
-                penultimate,
-            ]
-    else:
-        extract_vector = [normalized_y]
+    return extract_features_tags(
+        model_name=model,
+        batches=batches,
+        session=session,
+        feed_list=feed_list,
+        extract_vector=extract_vector,
+        extract_features=extract_features,
+        close_session=True,
+    )
 
-    tf_out = sess.run(
-        extract_vector, feed_dict={x: batch[: config.BATCH_SIZE], is_training: False}
+
+def extract_features_tags(
+    model_name: str,
+    batches: np.ndarray,
+    session: tf.compat.v1.Session,
+    feed_list: list,
+    extract_vector: list,
+    extract_features: bool = True,
+    close_session: bool = False,
+) -> tuple[np.ndarray, list] | tuple[np.ndarray, list, dict]:
+    """Extract features and tags from the model.
+
+    PARAMETERS
+    ----------
+    model_name: str
+        Name of the model in `session` being used for extraction.
+    batches: np.ndarray, shape (batches, times, frequencies)
+        Batches of the audio spectrogram to be processed, as returned from
+        `extractor.batch_data`.
+    session: tf.compat.v1.Session
+        TensorFlow session containing the model, as returned from `models.load_model`.
+    feed_list: list
+        List of information to pass when running the session, as returned from
+        `models.load_model`.
+    extract_vector: list
+        List of information to extract from the model, as returned from
+        `models.load_model`.
+    extract_features: bool, default True
+        Whether to extract the intermediate features of the model.
+    close_session: bool, default False
+        Whether to close the TensorFlow session after extraction.
+
+    RETURNS
+    -------
+    taggram: np.ndarray, shape (batches, tags)
+        The taggram containing the temporal evolution of tags.
+    labels: list
+        List of tags in `taggram`.
+    features: dict
+        Dictionary containing the intermediate features of the model. Only returned if
+        `extract_features=True`.
+    """
+    # ... first batch!
+    if not extract_features:
+        extract_vector = extract_vector[0]  # only take the tags
+
+    tf_out = session.run(
+        extract_vector,
+        feed_dict={
+            feed_list[0]: batches[: config.BATCH_SIZE],  # x
+            feed_list[1]: False,  # is_training
+        },
     )
 
     if extract_features:
-        if "vgg" in model:
+        if "vgg" in model_name:
             predicted_tags, pool1_, pool2_, pool3_, pool4_, pool5_ = tf_out
             features = dict()
             features["pool1"] = np.squeeze(pool1_)
@@ -252,18 +246,18 @@ def extractor(
 
     taggram = np.array(predicted_tags)
 
-    # ..rest of the batches!
-    for id_pointer in range(config.BATCH_SIZE, batch.shape[0], config.BATCH_SIZE):
-        tf_out = sess.run(
+    # ... rest of the batches!
+    for id_pointer in range(config.BATCH_SIZE, batches.shape[0], config.BATCH_SIZE):
+        tf_out = session.run(
             extract_vector,
             feed_dict={
-                x: batch[id_pointer : id_pointer + config.BATCH_SIZE],
-                is_training: False,
+                feed_list[0]: batches[id_pointer : id_pointer + config.BATCH_SIZE],  # x
+                feed_list[1]: False,  # is_training
             },
         )
 
         if extract_features:
-            if "vgg" in model:
+            if "vgg" in model_name:
                 predicted_tags, pool1_, pool2_, pool3_, pool4_, pool5_ = tf_out
                 features["pool1"] = np.concatenate(
                     (features["pool1"], np.squeeze(pool1_)), axis=0
@@ -321,7 +315,13 @@ def extractor(
 
         taggram = np.concatenate((taggram, np.array(predicted_tags)), axis=0)
 
-    sess.close()
+    if model_name.startswith("MTT_"):
+        labels = config.MTT_LABELS
+    else:
+        labels = config.MSD_LABELS
+
+    if close_session:
+        session.close()
     print("done!")
 
     if extract_features:

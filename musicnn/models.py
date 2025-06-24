@@ -1,5 +1,7 @@
+import os
 import warnings
 
+import librosa
 import tensorflow as tf
 
 from musicnn import configuration as config
@@ -230,7 +232,7 @@ def midend(front_end_output, is_training, num_filt):
 def backend(feature_map, is_training, num_classes, output_units, type):
     # temporal pooling
     max_pool = tf.reduce_max(feature_map, axis=1)
-    mean_pool, var_pool = tf.nn.moments(feature_map, axes=[1])
+    mean_pool, _ = tf.nn.moments(feature_map, axes=[1])
     tmp_pool = tf.concat([max_pool, mean_pool], 2)
 
     # penultimate dense layer
@@ -336,3 +338,75 @@ def vgg(x, is_training, num_classes, num_filters=32):
         inputs=do_pool5, activation=None, units=num_classes
     )
     return output, pool1, pool2, pool3, pool4, pool5
+
+
+def load_model(
+    model: str, input_length: float = 3.0
+) -> tuple[tf.compat.v1.Session, list, list, int]:
+    """Define and load the tensorflow model.
+
+    PARAMETERS
+    ----------
+    model : str
+        Name of the model to load.
+    input_length : float, default 3.0
+        Length of the input spectrogram patches in seconds.
+
+    RETURNS
+    -------
+    session : tf.compat.v1.Session
+        TensorFlow session with the loaded model.
+    feed_dict_values : list
+        List of placeholder values for the model.
+    extract_vector : list
+        List containing the model's output tensors.
+    n_frames : int
+        Number of frames in the input spectrogram patches.
+    """
+    # select model
+    if model not in config.MODELS:
+        raise ValueError(
+            f"Model '{model}' is not recognised. Available models are: {config.MODELS}"
+        )
+    if model.startswith("MTT_"):
+        labels = config.MTT_LABELS
+    else:
+        labels = config.MSD_LABELS
+    num_classes = len(labels)
+
+    if "vgg" in model and input_length != 3:
+        raise ValueError(
+            "Set input_length=3, the VGG models cannot handle different input lengths."
+        )
+
+    # convert seconds to frames
+    n_frames = (
+        librosa.time_to_frames(
+            input_length, sr=config.SR, n_fft=config.FFT_SIZE, hop_length=config.FFT_HOP
+        )
+        + 1
+    )
+
+    # tensorflow: define the model
+    tf.compat.v1.reset_default_graph()
+    with tf.compat.v1.name_scope("model"):
+        x = tf.compat.v1.placeholder(tf.float32, [None, n_frames, config.N_MELS])
+        is_training = tf.compat.v1.placeholder(tf.bool)
+        extract_vector = list(define_model(x, is_training, model, num_classes))
+        extract_vector[0] = tf.nn.sigmoid(extract_vector[0])  # the tags
+
+    # tensorflow: loading model
+    sess = tf.compat.v1.Session()
+    sess.run(tf.compat.v1.global_variables_initializer())
+    saver = tf.compat.v1.train.Saver()
+    try:
+        saver.restore(sess, os.path.dirname(__file__) + "\\" + model + "\\")
+    except tf.errors.DataLossError as error:
+        if model == "MSD_musicnn_big":
+            raise ValueError(
+                "'MSD_musicnn_big' model is only available if you install from source."
+            ) from error
+        raise ValueError(f"Model '{model}' cannot be loaded.") from error
+    feed_list = [x, is_training]
+
+    return sess, feed_list, extract_vector, n_frames
