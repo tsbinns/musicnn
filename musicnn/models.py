@@ -1,7 +1,12 @@
+import warnings
+
 import tensorflow as tf
+
 from musicnn import configuration as config
 
-# disabling deprecation warnings (caused by change from tensorflow 1.x to 2.x)
+# disabling (most) warnings caused by change from tensorflow 1.x to 2.x
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 tf.compat.v1.logging.set_verbosity("ERROR")
 
 

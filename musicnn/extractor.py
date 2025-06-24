@@ -1,8 +1,15 @@
 import os
+import warnings
+
 import numpy as np
 import librosa
 
 import tensorflow as tf
+
+# disabling (most) warnings caused by change from tensorflow 1.x to 2.x
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+tf.compat.v1.logging.set_verbosity("ERROR")
 
 # disable eager mode for tf.v1 compatibility with tf.v2
 tf.compat.v1.disable_eager_execution()
