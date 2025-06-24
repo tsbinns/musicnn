@@ -320,7 +320,6 @@ def extract_features_tags(
 
     if close_session:
         session.close()
-    print("done!")
 
     if extract_features:
         return taggram, labels, features
