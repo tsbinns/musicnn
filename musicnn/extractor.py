@@ -67,6 +67,7 @@ def batch_data(
             raise ValueError("If `audio` is a numpy array, `sr` must be provided.")
         if audio.ndim != 2:
             raise ValueError("`audio` must be a 2D numpy array of (channels, times).")
+        audio = np.mean(audio, axis=0)  # convert to mono
         if sr != config.SR:  # standardise sampling rate
             audio = librosa.resample(
                 audio, orig_sr=sr, target_sr=config.SR, **resample_kwargs
