@@ -11,11 +11,10 @@ classifiers = [
     "Intended Audience :: Science/Research",
     'Topic :: Multimedia :: Sound/Audio :: Analysis',
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
 ]
 dependencies = ['librosa', 'tensorflow-cpu', 'numpy']
 description = 'Pronounced as "musician", musicnn is a set of pre-trained deep convolutional neural networks for music audio tagging'
-dynamic = ["version"]
+version = "0.1.1"
 name = 'musicnn'
 
 [project.urls]
