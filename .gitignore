@@ -1,3 +1,4 @@
+.vscode/
 .ipynb_checkpoints/
 .ipynb
 musicnn/__pycache__/
