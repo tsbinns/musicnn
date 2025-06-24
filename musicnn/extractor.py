@@ -137,7 +137,7 @@ def extractor(
         `extract_features=True`.
     """
     # load model
-    session, feed_list, extract_vector, n_frames = models.load_model(
+    session, feed_list, extract_vector, n_frames = models.initialise_model(
         model=model, input_length=input_length
     )
 

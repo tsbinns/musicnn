@@ -340,17 +340,17 @@ def vgg(x, is_training, num_classes, num_filters=32):
     return output, pool1, pool2, pool3, pool4, pool5
 
 
-def load_model(
+def initialise_model(
     model: str, input_length: float = 3.0
 ) -> tuple[tf.compat.v1.Session, list, list, int]:
-    """Define and load the tensorflow model.
+    """Define parameters and load the tensorflow model.
 
     PARAMETERS
     ----------
     model : str
         Name of the model to load.
     input_length : float, default 3.0
-        Length of the input spectrogram patches in seconds.
+        Length of the input spectrogram batches in seconds.
 
     RETURNS
     -------
