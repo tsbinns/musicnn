@@ -29,7 +29,7 @@ def define_model(x, is_training, model, num_classes):
 def build_musicnn(x, is_training, num_classes, num_filt_frontend=1.6, num_filt_midend=64, num_units_backend=200):
 
     ### front-end ### musically motivated CNN
-    frontend_features_list = frontend(x, is_training, config.N_MELS, num_filt=1.6, type='7774timbraltemporal')
+    frontend_features_list = frontend(x, is_training, config.N_MELS, num_filt=num_filt_frontend, type='7774timbraltemporal')
     # concatnate features coming from the front-end
     frontend_features = tf.concat(frontend_features_list, 2)
 
