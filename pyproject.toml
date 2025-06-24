@@ -3,6 +3,7 @@ build-backend = "setuptools.build_meta"
 requires = ["setuptools>=64", "setuptools_scm[toml]>=8", "wheel"]
 
 [project]
+requires-python = "<3.12"
 classifiers = [
     "License :: OSI Approved :: ISC License (ISCL)",
     "Programming Language :: Python",
@@ -12,7 +13,7 @@ classifiers = [
     'Topic :: Multimedia :: Sound/Audio :: Analysis',
     "Programming Language :: Python :: 3",
 ]
-dependencies = ['librosa', 'tensorflow-cpu', 'numpy']
+dependencies = ['librosa', 'tensorflow-cpu<2.16.0', 'numpy']
 description = 'Pronounced as "musician", musicnn is a set of pre-trained deep convolutional neural networks for music audio tagging'
 version = "0.1.1"
 name = 'musicnn'
