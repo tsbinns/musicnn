@@ -341,7 +341,7 @@ def vgg(x, is_training, num_classes, num_filters=32):
 
 
 def initialise_model(
-    model: str, input_length: float = 3.0
+    model: str, input_length: float = 3.0, n_jobs: int = 1
 ) -> tuple[tf.compat.v1.Session, list, list, int]:
     """Define parameters and load the tensorflow model.
 
@@ -351,6 +351,8 @@ def initialise_model(
         Name of the model to load.
     input_length : float, default 3.0
         Length of the input spectrogram batches in seconds.
+    n_jobs : int, default 1
+        Number of jobs to use for parallel processing in the session.
 
     RETURNS
     -------
@@ -396,7 +398,8 @@ def initialise_model(
         extract_vector[0] = tf.nn.sigmoid(extract_vector[0])  # the tags
 
     # tensorflow: loading model
-    sess = tf.compat.v1.Session()
+    session_config = tf.compat.v1.ConfigProto(device_count={"CPU": n_jobs})
+    sess = tf.compat.v1.Session(config=session_config)
     sess.run(tf.compat.v1.global_variables_initializer())
     saver = tf.compat.v1.train.Saver()
     try:

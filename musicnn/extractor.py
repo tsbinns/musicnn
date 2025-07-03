@@ -85,8 +85,7 @@ def batch_data(
         n_fft=config.FFT_SIZE,
         n_mels=config.N_MELS,
     ).T
-    audio_rep = audio_rep.astype(np.float16)
-    audio_rep = np.log10(10000 * audio_rep + 1)
+    audio_rep = np.log10(10000 * audio_rep + 1).astype(np.float16)
 
     # batch it for an efficient computing
     first = True
